@@ -1,10 +1,9 @@
+const http = require('http');
+http.createServer((req,res)=>res.end("Bot Bojatim Jalan")).listen(process.env.PORT || 3000);
+
 const { default: makeWASocket, useMultiFileAuthState } = require('@whiskeysockets/baileys')
 const P = require('pino')
 const qrcode = require('qrcode-terminal')
-const http = require('http')
-
-// Biar Render gak error "No open ports"
-http.createServer((req,res)=>res.end("Bot Jalan")).listen(process.env.PORT || 3000)
 
 async function startBot() {
   const { state, saveCreds } = await useMultiFileAuthState('auth_info')
@@ -17,10 +16,11 @@ async function startBot() {
   sock.ev.on('connection.update', async (up) => {
     const { connection, qr } = up
     if(qr){
-      console.log("=== SCAN QR INI ===")
+      console.log("=== SCAN QR INI BOS ===")
       qrcode.generate(qr, {small:true})
     }
-    if (connection === 'open') console.log("BOT WA UDAH JALAN MANTAP BOS!")
+    if (connection === 'open') console.log("BOT BOJATIM CONNECT MANTAP!")
+    if (connection === 'close') startBot()
   })
   const SUMBER = "1203630XXXX@g.us"
   const TUJUAN = "1203630XXXX@g.us"
@@ -31,7 +31,7 @@ async function startBot() {
       if (msg.key.remoteJid === SUMBER) {
         await new Promise(r => setTimeout(r, 2000))
         await sock.sendMessage(TUJUAN, { forward: msg })
-        console.log("SUKSES FORWARD")
+        console.log("SUKSES FORWARD PESAN")
       }
     } catch(e){console.log(e)}
   })
