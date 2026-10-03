@@ -29,26 +29,20 @@ async function startBot() {
     const { connection, qr } = up
     if(qr){
       lastQR = qr
-      console.log("QR BARU MUNCUL, BUKA LINK BOT LU BUAT SCAN")
+      console.log("QR BARU MUNCUL")
     }
     if (connection === 'open'){
       lastQR = null
-      console.log("BOT BOJATIM CONNECT MANTAP!")
+      console.log("BOT CONNECT MANTAP!")
     }
     if (connection === 'close') startBot()
   })
-
-  const SUMBER = "1203630XXXX@g.us"
-  const TUJUAN = "1203630XXXX@g.us"
   sock.ev.on('messages.upsert', async (m) => {
     try {
       const msg = m.messages[0]
       if (!msg.message || msg.key.fromMe) return
-      if (msg.key.remoteJid === SUMBER) {
-        await new Promise(r => setTimeout(r, 2000))
-        await sock.sendMessage(TUJUAN, { forward: msg })
-      }
-    } catch(e){console.log(e)}
+      console.log("PESAN DARI:", msg.key.remoteJid)
+    } catch(e){}
   })
 }
 startBot()
