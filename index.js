@@ -1,27 +1,43 @@
 const http = require('http');
-http.createServer((req,res)=>res.end("Bot Bojatim Jalan")).listen(process.env.PORT || 3000);
-
 const { default: makeWASocket, useMultiFileAuthState } = require('@whiskeysockets/baileys')
 const P = require('pino')
-const qrcode = require('qrcode-terminal')
+const qrcode = require('qrcode')
+
+let lastQR = null
+
+http.createServer(async (req,res)=>{
+  if(lastQR){
+    try{
+      const qrImage = await qrcode.toDataURL(lastQR)
+      res.writeHead(200, {'Content-Type':'text/html'});
+      res.end(`<center><h1>SCAN QR INI DI iPHONE</h1><img src="${qrImage}" style="width:90vw;max-width:500px"><br><p>Refresh kalo expire</p></center>`)
+      return
+    }catch(e){}
+  }
+  res.end("Bot Bojatim Jalan - Tunggu QR...")
+}).listen(process.env.PORT || 3000);
 
 async function startBot() {
   const { state, saveCreds } = await useMultiFileAuthState('auth_info')
   const sock = makeWASocket({
     auth: state,
     logger: P({ level: 'silent' }),
-    printQRInTerminal: true
+    printQRInTerminal: false
   })
   sock.ev.on('creds.update', saveCreds)
   sock.ev.on('connection.update', async (up) => {
     const { connection, qr } = up
     if(qr){
-      console.log("=== SCAN QR INI BOS ===")
-      qrcode.generate(qr, {small:true})
+      lastQR = qr
+      console.log("QR BARU MUNCUL, BUKA LINK BOT LU BUAT SCAN")
     }
-    if (connection === 'open') console.log("BOT BOJATIM CONNECT MANTAP!")
+    if (connection === 'open'){
+      lastQR = null
+      console.log("BOT BOJATIM CONNECT MANTAP!")
+    }
     if (connection === 'close') startBot()
   })
+
   const SUMBER = "1203630XXXX@g.us"
   const TUJUAN = "1203630XXXX@g.us"
   sock.ev.on('messages.upsert', async (m) => {
@@ -31,7 +47,6 @@ async function startBot() {
       if (msg.key.remoteJid === SUMBER) {
         await new Promise(r => setTimeout(r, 2000))
         await sock.sendMessage(TUJUAN, { forward: msg })
-        console.log("SUKSES FORWARD PESAN")
       }
     } catch(e){console.log(e)}
   })
