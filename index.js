@@ -1,59 +1,81 @@
-const http = require('http')
-const { default: makeWASocket, useMultiFileAuthState } = require("@whiskeysockets/baileys")
-const P = require('pino')
-const QRCode = require('qrcode')
+const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require("@whiskeysockets/baileys")
+const express = require("express")
+const fs = require("fs")
+const app = express()
+app.get("/", (req,res)=> res.send("BOJATIM BOT AKTIF"))
+app.listen(process.env.PORT || 3000)
 
-let lastQR = null
+// RESTORE SESSION BIAR GAK SCAN QR LAGI
+if (process.env.SESSION_B64) {
+  try {
+    const data = JSON.parse(Buffer.from(process.env.SESSION_B64, 'base64').toString())
+    if(!fs.existsSync("./auth")) fs.mkdirSync("./auth")
+    fs.writeFileSync("./auth/creds.json", JSON.stringify(data, null, 2))
+    console.log("SESSION RESTORED!")
+  } catch(e){}
+}
 
 async function startBot() {
-    const { state, saveCreds } = await useMultiFileAuthState('auth_info')
-    const sock = makeWASocket({ auth: state, logger: P({ level: 'silent' }) })
-    sock.ev.on('creds.update', saveCreds)
+  const { state, saveCreds } = await useMultiFileAuthState("./auth")
+  const sock = makeWASocket({ auth: state, printQRInTerminal: true })
+  sock.ev.on("creds.update", saveCreds)
+  sock.ev.on("connection.update", async (update) => {
+    const { connection, lastDisconnect } = update
+    if (connection === "close") {
+      if (lastDisconnect?.error?.output?.statusCode!== DisconnectReason.loggedOut) startBot()
+    } else if (connection === "open") {
+      console.log("BOT NYAMBUNG!")
+      try {
+        const b64 = Buffer.from(fs.readFileSync("./auth/creds.json")).toString('base64')
+        console.log("\n\nCOPY INI JADI SESSION_B64 DI RENDER:\n" + b64 + "\n\n")
+      } catch(e){}
+    }
+  })
 
-    sock.ev.on('messages.upsert', async ({ messages }) => {
-        const msg = messages[0]
-        if(!msg.message || msg.key.fromMe) return
-        const from = msg.key.remoteJid
-        if(from.endsWith('@g.us')) return
+// AUTO BALAS 2 STEP - PUNYA BOS PERSIS 100%
+  sock.ev.on("messages.upsert", async (m) => {
+    const msg = m.messages[0]
+    if (!msg.message || msg.key.fromMe) return
+    const text = (msg.message.conversation || msg.message.extendedTextMessage?.text || "").toLowerCase()
+    const jid = msg.key.remoteJid
+    if (!text) return
 
-        const saweriaLink = 'https://saweria.co/bojatim'
+    // STEP 1 - BELUM BAYAR
+    if (text.includes("halo") || text.includes("hai") || text.includes("harga") || text.includes("vip") || text.includes("masuk")) {
+      const balasan1 = `Halo kak 👋
 
-        await sock.sendMessage(from, { text:
-`Yg mau grup bo, wajib gabung grup dulu ya kak ☕
+Mau masuk VIP BOJATIM ya?
 
-*HARGA MASUK: 100RB Lifetime*
+💎 *HARGA: 100RB Lifetime*
+Bayar sekali, masuk selamanya + update tiap hari
 
-*METODE BAYAR 100RB:*
-DANA: 083134480982
-GOPAY: 083134480982
-ShopeePay: 083134480982
-BCA: 1663545594 a.n Mia kharisma
-SAWERIA: ${saweriaLink}
+💸 *BAYAR DI SINI:*
+https://saweria.co/bojatim
 
-Kirim bukti TF kesini ya kak, nanti link grup langsung dikirim! ✅`
-        })
-    })
+Habis bayar, ketik *SUDAH BAYAR* ya kak, nanti langsung gue kirim 3 link grup VIP nya otomatis 🙏`
 
-    sock.ev.on('connection.update', async (u) => {
-        const { connection, qr, lastDisconnect } = u
-        if(qr) lastQR = await QRCode.toDataURL(qr)
-        if(connection === 'open') {
-            lastQR = null
-            console.log('BOT CONNECTED ✅')
-        }
-        if(connection === 'close' && lastDisconnect?.error?.output?.statusCode!== 401) {
-            startBot()
-        }
-    })
+      await sock.sendMessage(jid, { text: balasan1 })
+    }
+    // STEP 2 - SUDAH BAYAR, BARU KIRIM LINK
+    else if (text.includes("sudah bayar") || text.includes("udah bayar") || text.includes("done") || text.includes("sudahbayar") || text.includes("bayar")) {
+      const balasan2 = `Makasih kak udah bayar! ✅🔥
+
+Ini 3 link VIP nya, langsung join ya kak:
+
+📲 *TELE VIP 1:*
+https://t.me/+R4gUSyHqP_c4MjY1
+
+📲 *TELE VIP 2:*
+https://t.me/+ZZxiDJMzOqljMWY1
+
+💬 *WA VIP:*
+https://chat.whatsapp.com/JkRcrdXGQX04UsHZ0kbvGZ?mode=gi_t
+
+Jangan lupa di-save ya kak, kalau kehapus chat gue lagi aja ketik SUDAH BAYAR lagi 🙏`
+
+      await sock.sendMessage(jid, { text: balasan2 })
+    }
+  })
+
 }
 startBot()
-
-http.createServer((req,res)=>{
-    if(lastQR){
-        res.writeHead(200, {'Content-Type':'text/html'})
-        res.end(`<img src="${lastQR}" width="300"/><h2>Scan QR ini bos!</h2><script>setTimeout(()=>location.reload(),3000)</script>`)
-    } else {
-        res.writeHead(200, {'Content-Type':'text/plain'})
-        res.end('BOT AKTIF BOS')
-    }
-}).listen(process.env.PORT || 3000)
