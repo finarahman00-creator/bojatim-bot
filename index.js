@@ -41,21 +41,29 @@ console.log("COPY KODE DI ATAS, MASUKIN KE RENDER ENV!")
 }
 if(u.connection==='close'){startBot()}
 })
-
 sock.ev.on('messages.upsert',async m=>{
 const msg=m.messages[0]
 if(!msg.message)return
 const from=msg.key.remoteJid
+const body=(msg.message.conversation||msg.message.extendedTextMessage?.text||"").toLowerCase()
+
+// KALO CHAT PRIBADI, AUTO BALES!
+if(from.endsWith('@s.whatsapp.net')){
+if(msg.key.fromMe) return
+await sock.sendMessage(from,{text:"gabung grup 100.000 yg mau bo silahkan. Wajib grup"})
+return
+}
+
 if(!from.endsWith('@g.us'))return
-const body=(msg.message.conversation||msg.message.extendedTextMessage?.text||"").trim()
-if(body===".menu"){await sock.sendMessage(from,{text:"BOT BOJATIM AKTIF ✅ PERMANEN\nKetik.tagall"})}
+if(body===".menu"){await sock.sendMessage(from,{text:"MENU"})}
 if(body===".tagall"){
 const meta=await sock.groupMetadata(from)
 let teks="*TAG ALL BOJATIM:*\n\n"
 let mentions=[]
-for(let p of meta.participants){mentions.push(p.id);teks+="@"+p.id.split('@')[0]+" \n"}
+for(let p of meta.participants){mentions.push(p.id);teks+=`@${p.id.split('@')[0]}\n`}
 await sock.sendMessage(from,{text:teks,mentions})
 }
+})
 })
 }
 startBot()
